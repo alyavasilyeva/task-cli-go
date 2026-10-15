@@ -26,6 +26,7 @@ type Task struct {
 }
 
 func create(description string, filename string) {
+	// open file or create it if it doesn't exist
 	jsonFile, err := os.Open(filename)
 	if err != nil && os.IsNotExist(err) {
 		jsonFile, err = os.Create(filename)
@@ -33,16 +34,22 @@ func create(description string, filename string) {
 	}
 	defer jsonFile.Close()
 
+	// read file
 	byteValue, err := io.ReadAll(jsonFile)
 	check(err)
 	var tasks []Task
+
+	// unmarshal file into tasks
 	json.Unmarshal(byteValue, &tasks)
+
+	// check if task already exists
 	index := slices.IndexFunc(tasks, func(t Task) bool { return t.Description == description })
 	if index != -1 {
 		fmt.Println("Task already exists")
 		return
 	}
 
+	// create task
 	task := Task{
 		Id:          uuid.NewV7().String(),
 		Description: description,
@@ -51,8 +58,12 @@ func create(description string, filename string) {
 		UpdatedAt:   time.Now().Format(time.RFC3339),
 	}
 	tasks = append(tasks, task)
+
+	// marshal tasks into json
 	byteValue, err = json.Marshal(tasks)
 	check(err)
+
+	// write tasks to file
 	err = os.WriteFile(filename, byteValue, 0644)
 	check(err)
 }
@@ -62,7 +73,6 @@ func main() {
 
 	args := os.Args[1:]
 
+	// create task
 	create(args[0], filename)
-
-	fmt.Println(args)
 }
