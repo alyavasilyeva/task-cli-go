@@ -69,7 +69,7 @@ func create(description string, filename string) {
 }
 
 func main() {
-	filename := "tasks.json"
+	const filename = "tasks.json"
 
 	args := os.Args[1:]
 
