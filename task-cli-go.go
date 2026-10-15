@@ -1,8 +1,8 @@
 package main
 
 import (
-	// "flag"
 	"encoding/json/v2"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -66,13 +66,36 @@ func create(description string, filename string) {
 	// write tasks to file
 	err = os.WriteFile(filename, byteValue, 0644)
 	check(err)
+
+	fmt.Println("Task created:", task.Id)
 }
 
 func main() {
 	const filename = "tasks.json"
 
-	args := os.Args[1:]
+	createFlag := flag.NewFlagSet("create", flag.ExitOnError)
+	createFlag.Usage = func() {
+		fmt.Fprintln(createFlag.Output(), "Usage: task-cli-go create <description>")
+	}
 
-	// create task
-	create(args[0], filename)
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "Expected a subcommand")
+		os.Exit(2)
+	}
+	subcommand := os.Args[1]
+
+	switch subcommand {
+	case "create":
+		if err := createFlag.Parse(os.Args[2:]); err != nil {
+			os.Exit(2)
+		}
+		if createFlag.NArg() != 1 {
+			createFlag.Usage()
+			os.Exit(2)
+		}
+		create(createFlag.Arg(0), filename)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", subcommand)
+		os.Exit(2)
+	}
 }
