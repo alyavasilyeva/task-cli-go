@@ -25,7 +25,7 @@ type Task struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
-func create(description string, filename string) {
+func loadTasks(filename string) []Task {
 	// open file or create it if it doesn't exist
 	jsonFile, err := os.Open(filename)
 	if err != nil && os.IsNotExist(err) {
@@ -41,6 +41,12 @@ func create(description string, filename string) {
 
 	// unmarshal file into tasks
 	json.Unmarshal(byteValue, &tasks)
+
+	return tasks
+}
+
+func create(description string, filename string) {
+	tasks := loadTasks(filename)
 
 	// check if task already exists
 	index := slices.IndexFunc(tasks, func(t Task) bool { return t.Description == description })
@@ -60,7 +66,7 @@ func create(description string, filename string) {
 	tasks = append(tasks, task)
 
 	// marshal tasks into json
-	byteValue, err = json.Marshal(tasks)
+	byteValue, err := json.Marshal(tasks)
 	check(err)
 
 	// write tasks to file
