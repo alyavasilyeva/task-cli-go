@@ -19,6 +19,15 @@ const (
 	TaskStatusDone       TaskStatus = "done"
 )
 
+func (s TaskStatus) Valid() bool {
+	switch s {
+	case TaskStatusTodo, TaskStatusInProgress, TaskStatusDone:
+		return true
+	default:
+		return false
+	}
+}
+
 type Task struct {
 	Id          string     `json:"id"`
 	Description string     `json:"description"`
@@ -179,10 +188,20 @@ func mark(id string, status TaskStatus, filename string) error {
 	return nil
 }
 
-func list(filename string) error {
+func list(filename string, status *TaskStatus) error {
 	tasks, err := loadTasks(filename)
 	if err != nil {
 		return err
+	}
+
+	if status != nil {
+		filteredTasks := make([]Task, 0, len(tasks))
+		for _, task := range tasks {
+			if task.Status == *status {
+				filteredTasks = append(filteredTasks, task)
+			}
+		}
+		tasks = filteredTasks
 	}
 
 	if len(tasks) == 0 {
@@ -219,7 +238,8 @@ func main() {
 
 	listFlag := flag.NewFlagSet("list", flag.ExitOnError)
 	listFlag.Usage = func() {
-		fmt.Fprintln(listFlag.Output(), "Usage: task-cli-go list")
+		fmt.Fprintln(listFlag.Output(), "Usage: task-cli-go list [status]")
+		fmt.Fprintln(listFlag.Output(), "Valid statuses: todo, in-progress, done")
 	}
 
 	deleteFlag := flag.NewFlagSet("delete", flag.ExitOnError)
@@ -261,11 +281,23 @@ func main() {
 		if err := listFlag.Parse(os.Args[2:]); err != nil {
 			os.Exit(2)
 		}
-		if listFlag.NArg() != 0 {
+		if listFlag.NArg() > 1 {
 			listFlag.Usage()
 			os.Exit(2)
 		}
-		if err := list(filename); err != nil {
+
+		var statusFilter *TaskStatus
+		if listFlag.NArg() == 1 {
+			status := TaskStatus(listFlag.Arg(0))
+			if !status.Valid() {
+				fmt.Fprintf(os.Stderr, "list: invalid status: %s\n", status)
+				listFlag.Usage()
+				os.Exit(2)
+			}
+			statusFilter = &status
+		}
+
+		if err := list(filename, statusFilter); err != nil {
 			fmt.Fprintf(os.Stderr, "list: %v\n", err)
 			os.Exit(1)
 		}
@@ -304,7 +336,7 @@ func main() {
 			os.Exit(2)
 		}
 		status := TaskStatus(markFlag.Arg(1))
-		if status != TaskStatusTodo && status != TaskStatusInProgress && status != TaskStatusDone {
+		if !status.Valid() {
 			fmt.Fprintf(os.Stderr, "mark: invalid status: %s\n", markFlag.Arg(1))
 			fmt.Fprintln(os.Stderr, "Valid statuses: todo, in-progress, done")
 			os.Exit(2)
