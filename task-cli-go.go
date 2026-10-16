@@ -2,20 +2,14 @@ package main
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"time"
 	"uuid"
 )
-
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
 
 type TaskStatus string
 
@@ -33,34 +27,36 @@ type Task struct {
 	UpdatedAt   string     `json:"updated_at"`
 }
 
-func loadTasks(filename string) []Task {
-	// open file or create it if it doesn't exist
-	jsonFile, err := os.Open(filename)
-	if err != nil && os.IsNotExist(err) {
-		jsonFile, err = os.Create(filename)
-		check(err)
+func loadTasks(filename string) ([]Task, error) {
+	byteValue, err := os.ReadFile(filename)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
 	}
-	defer jsonFile.Close()
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", filename, err)
+	}
+	if len(byteValue) == 0 {
+		return nil, nil
+	}
 
-	// read file
-	byteValue, err := io.ReadAll(jsonFile)
-	check(err)
 	var tasks []Task
-
-	// unmarshal file into tasks
-	json.Unmarshal(byteValue, &tasks)
-
-	return tasks
+	if err := json.Unmarshal(byteValue, &tasks); err != nil {
+		return nil, fmt.Errorf("decode %s: %w", filename, err)
+	}
+	return tasks, nil
 }
 
-func create(description string, filename string) {
-	tasks := loadTasks(filename)
+func create(description string, filename string) error {
+	tasks, err := loadTasks(filename)
+	if err != nil {
+		return err
+	}
 
 	// check if task already exists
 	index := slices.IndexFunc(tasks, func(t Task) bool { return t.Description == description })
 	if index != -1 {
 		fmt.Println("Task already exists")
-		return
+		return nil
 	}
 
 	// create task
@@ -75,38 +71,47 @@ func create(description string, filename string) {
 
 	// marshal tasks into json
 	byteValue, err := json.Marshal(tasks)
-	check(err)
+	if err != nil {
+		return fmt.Errorf("encode tasks: %w", err)
+	}
 
 	// write tasks to file
-	err = os.WriteFile(filename, byteValue, 0644)
-	check(err)
+	if err := os.WriteFile(filename, byteValue, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", filename, err)
+	}
 
 	fmt.Println("Task created:", task.Id)
+	return nil
 }
 
-func list(filename string) {
-	tasks := loadTasks(filename)
+func list(filename string) error {
+	tasks, err := loadTasks(filename)
+	if err != nil {
+		return err
+	}
 
 	if len(tasks) == 0 {
 		fmt.Println("No tasks found")
-		return
+		return nil
 	}
 
+	var taskErrors []error
 	fmt.Printf("|%-36s|%-20s|%-10s|%-20s|%-20s|\n", "ID", "Description", "Status", "CreatedAt", "UpdatedAt")
 	for _, task := range tasks {
 		createdAt, err := time.Parse(time.RFC3339, task.CreatedAt)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing createdAt: %v\n", err)
+			taskErrors = append(taskErrors, fmt.Errorf("task %s: invalid created_at %q: %w", task.Id, task.CreatedAt, err))
 			continue
 		}
 		updatedAt, err := time.Parse(time.RFC3339, task.UpdatedAt)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing updatedAt: %v\n", err)
+			taskErrors = append(taskErrors, fmt.Errorf("task %s: invalid updated_at %q: %w", task.Id, task.UpdatedAt, err))
 			continue
 		}
 
 		fmt.Printf("|%-36s|%-20s|%-10s|%-20s|%-20s|\n", task.Id, task.Description, task.Status, createdAt.Format(time.DateTime), updatedAt.Format(time.DateTime))
 	}
+	return errors.Join(taskErrors...)
 }
 
 func main() {
@@ -137,7 +142,10 @@ func main() {
 			createFlag.Usage()
 			os.Exit(2)
 		}
-		create(createFlag.Arg(0), filename)
+		if err := create(createFlag.Arg(0), filename); err != nil {
+			fmt.Fprintf(os.Stderr, "create: %v\n", err)
+			os.Exit(1)
+		}
 
 	case "list":
 		if err := listFlag.Parse(os.Args[2:]); err != nil {
@@ -147,7 +155,10 @@ func main() {
 			listFlag.Usage()
 			os.Exit(2)
 		}
-		list(filename)
+		if err := list(filename); err != nil {
+			fmt.Fprintf(os.Stderr, "list: %v\n", err)
+			os.Exit(1)
+		}
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", subcommand)
