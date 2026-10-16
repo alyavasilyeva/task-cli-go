@@ -147,6 +147,38 @@ func update(id string, description string, filename string) error {
 	return nil
 }
 
+func mark(id string, status TaskStatus, filename string) error {
+	tasks, err := loadTasks(filename)
+	if err != nil {
+		return err
+	}
+
+	// check if task exists
+	index := slices.IndexFunc(tasks, func(t Task) bool { return t.Id == id })
+	if index == -1 {
+		fmt.Println("Task not found")
+		return nil
+	}
+
+	// update task
+	tasks[index].Status = status
+	tasks[index].UpdatedAt = time.Now().Format(time.RFC3339)
+
+	// marshal tasks into json
+	byteValue, err := json.Marshal(tasks)
+	if err != nil {
+		return fmt.Errorf("encode tasks: %w", err)
+	}
+
+	// write tasks to file
+	if err := os.WriteFile(filename, byteValue, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", filename, err)
+	}
+
+	fmt.Println("Task marked:", id, status)
+	return nil
+}
+
 func list(filename string) error {
 	tasks, err := loadTasks(filename)
 	if err != nil {
@@ -159,7 +191,7 @@ func list(filename string) error {
 	}
 
 	var taskErrors []error
-	fmt.Printf("|%-36s|%-20s|%-10s|%-20s|%-20s|\n", "ID", "Description", "Status", "CreatedAt", "UpdatedAt")
+	fmt.Printf("|%-36s|%-20s|%-12s|%-20s|%-20s|\n", "ID", "Description", "Status", "CreatedAt", "UpdatedAt")
 	for _, task := range tasks {
 		createdAt, err := time.Parse(time.RFC3339, task.CreatedAt)
 		if err != nil {
@@ -172,7 +204,7 @@ func list(filename string) error {
 			continue
 		}
 
-		fmt.Printf("|%-36s|%-20s|%-10s|%-20s|%-20s|\n", task.Id, task.Description, task.Status, createdAt.Format(time.DateTime), updatedAt.Format(time.DateTime))
+		fmt.Printf("|%-36s|%-20s|%-12s|%-20s|%-20s|\n", task.Id, task.Description, task.Status, createdAt.Format(time.DateTime), updatedAt.Format(time.DateTime))
 	}
 	return errors.Join(taskErrors...)
 }
@@ -198,6 +230,11 @@ func main() {
 	updateFlag := flag.NewFlagSet("update", flag.ExitOnError)
 	updateFlag.Usage = func() {
 		fmt.Fprintln(updateFlag.Output(), "Usage: task-cli-go update <id> <description>")
+	}
+
+	markFlag := flag.NewFlagSet("mark", flag.ExitOnError)
+	markFlag.Usage = func() {
+		fmt.Fprintln(markFlag.Output(), "Usage: task-cli-go mark <id> <status>")
 	}
 
 	if len(os.Args) < 2 {
@@ -255,6 +292,25 @@ func main() {
 		}
 		if err := update(updateFlag.Arg(0), updateFlag.Arg(1), filename); err != nil {
 			fmt.Fprintf(os.Stderr, "update: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "mark":
+		if err := markFlag.Parse(os.Args[2:]); err != nil {
+			os.Exit(2)
+		}
+		if markFlag.NArg() != 2 {
+			markFlag.Usage()
+			os.Exit(2)
+		}
+		status := TaskStatus(markFlag.Arg(1))
+		if status != TaskStatusTodo && status != TaskStatusInProgress && status != TaskStatusDone {
+			fmt.Fprintf(os.Stderr, "mark: invalid status: %s\n", markFlag.Arg(1))
+			fmt.Fprintln(os.Stderr, "Valid statuses: todo, in-progress, done")
+			os.Exit(2)
+		}
+		if err := mark(markFlag.Arg(0), status, filename); err != nil {
+			fmt.Fprintf(os.Stderr, "mark: %v\n", err)
 			os.Exit(1)
 		}
 
