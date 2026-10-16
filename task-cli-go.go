@@ -76,12 +76,42 @@ func create(description string, filename string) {
 	fmt.Println("Task created:", task.Id)
 }
 
+func list(filename string) {
+	tasks := loadTasks(filename)
+
+	if len(tasks) == 0 {
+		fmt.Println("No tasks found")
+		return
+	}
+
+	fmt.Printf("|%-36s|%-20s|%-10s|%-20s|%-20s|\n", "ID", "Description", "Status", "CreatedAt", "UpdatedAt")
+	for _, task := range tasks {
+		createdAt, err := time.Parse(time.RFC3339, task.CreatedAt)
+		if err != nil {
+			fmt.Println("Error parsing createdAt:", err)
+			continue
+		}
+		updatedAt, err := time.Parse(time.RFC3339, task.UpdatedAt)
+		if err != nil {
+			fmt.Println("Error parsing updatedAt:", err)
+			continue
+		}
+
+		fmt.Printf("|%-36s|%-20s|%-10s|%-20s|%-20s|\n", task.Id, task.Description, task.Status, createdAt.Format(time.DateTime), updatedAt.Format(time.DateTime))
+	}
+}
+
 func main() {
 	const filename = "tasks.json"
 
 	createFlag := flag.NewFlagSet("create", flag.ExitOnError)
 	createFlag.Usage = func() {
 		fmt.Fprintln(createFlag.Output(), "Usage: task-cli-go create <description>")
+	}
+
+	listFlag := flag.NewFlagSet("list", flag.ExitOnError)
+	listFlag.Usage = func() {
+		fmt.Fprintln(listFlag.Output(), "Usage: task-cli-go list")
 	}
 
 	if len(os.Args) < 2 {
@@ -100,6 +130,17 @@ func main() {
 			os.Exit(2)
 		}
 		create(createFlag.Arg(0), filename)
+
+	case "list":
+		if err := listFlag.Parse(os.Args[2:]); err != nil {
+			os.Exit(2)
+		}
+		if listFlag.NArg() != 0 {
+			listFlag.Usage()
+			os.Exit(2)
+		}
+		list(filename)
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", subcommand)
 		os.Exit(2)
