@@ -84,6 +84,37 @@ func create(description string, filename string) error {
 	return nil
 }
 
+func delete(id string, filename string) error {
+	tasks, err := loadTasks(filename)
+	if err != nil {
+		return err
+	}
+
+	// check if task exists
+	index := slices.IndexFunc(tasks, func(t Task) bool { return t.Id == id })
+	if index == -1 {
+		fmt.Println("Task not found")
+		return nil
+	}
+
+	// delete task
+	tasks = slices.Delete(tasks, index, index+1)
+
+	// marshal tasks into json
+	byteValue, err := json.Marshal(tasks)
+	if err != nil {
+		return fmt.Errorf("encode tasks: %w", err)
+	}
+
+	// write tasks to file
+	if err := os.WriteFile(filename, byteValue, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", filename, err)
+	}
+
+	fmt.Println("Task deleted:", id)
+	return nil
+}
+
 func list(filename string) error {
 	tasks, err := loadTasks(filename)
 	if err != nil {
@@ -127,6 +158,11 @@ func main() {
 		fmt.Fprintln(listFlag.Output(), "Usage: task-cli-go list")
 	}
 
+	deleteFlag := flag.NewFlagSet("delete", flag.ExitOnError)
+	deleteFlag.Usage = func() {
+		fmt.Fprintln(deleteFlag.Output(), "Usage: task-cli-go delete <id>")
+	}
+
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "Expected a subcommand")
 		os.Exit(2)
@@ -157,6 +193,19 @@ func main() {
 		}
 		if err := list(filename); err != nil {
 			fmt.Fprintf(os.Stderr, "list: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "delete":
+		if err := deleteFlag.Parse(os.Args[2:]); err != nil {
+			os.Exit(2)
+		}
+		if deleteFlag.NArg() != 1 {
+			deleteFlag.Usage()
+			os.Exit(2)
+		}
+		if err := delete(deleteFlag.Arg(0), filename); err != nil {
+			fmt.Fprintf(os.Stderr, "delete: %v\n", err)
 			os.Exit(1)
 		}
 
