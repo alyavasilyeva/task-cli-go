@@ -17,12 +17,20 @@ func check(e error) {
 	}
 }
 
+type TaskStatus string
+
+const (
+	TaskStatusTodo       TaskStatus = "todo"
+	TaskStatusInProgress TaskStatus = "in-progress"
+	TaskStatusDone       TaskStatus = "done"
+)
+
 type Task struct {
-	Id          string `json:"id"`
-	Description string `json:"description"`
-	Status      string `json:"status"` // todo, in-progress, done
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+	Id          string     `json:"id"`
+	Description string     `json:"description"`
+	Status      TaskStatus `json:"status"`
+	CreatedAt   string     `json:"created_at"`
+	UpdatedAt   string     `json:"updated_at"`
 }
 
 func loadTasks(filename string) []Task {
@@ -59,7 +67,7 @@ func create(description string, filename string) {
 	task := Task{
 		Id:          uuid.NewV7().String(),
 		Description: description,
-		Status:      "todo",
+		Status:      TaskStatusTodo,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 		UpdatedAt:   time.Now().Format(time.RFC3339),
 	}
@@ -88,12 +96,12 @@ func list(filename string) {
 	for _, task := range tasks {
 		createdAt, err := time.Parse(time.RFC3339, task.CreatedAt)
 		if err != nil {
-			fmt.Println("Error parsing createdAt:", err)
+			fmt.Fprintf(os.Stderr, "Error parsing createdAt: %v\n", err)
 			continue
 		}
 		updatedAt, err := time.Parse(time.RFC3339, task.UpdatedAt)
 		if err != nil {
-			fmt.Println("Error parsing updatedAt:", err)
+			fmt.Fprintf(os.Stderr, "Error parsing updatedAt: %v\n", err)
 			continue
 		}
 
