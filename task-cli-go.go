@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"time"
@@ -228,6 +229,20 @@ func list(filename string, status *TaskStatus) error {
 	return errors.Join(taskErrors...)
 }
 
+func printUsage(w io.Writer) {
+	fmt.Fprintln(w, `Usage: task-cli-go <command> [arguments]
+
+Commands:
+  create <description>        Create a task
+  list [status]               List tasks, optionally filtered by status
+  update <id> <description>   Update a task description
+  mark <id> <status>          Change a task status
+  delete <id>                 Delete a task
+  help                        Show this help
+
+Valid statuses: todo, in-progress, done`)
+}
+
 func main() {
 	const filename = "tasks.json"
 
@@ -258,12 +273,15 @@ func main() {
 	}
 
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Expected a subcommand")
+		printUsage(os.Stderr)
 		os.Exit(2)
 	}
 	subcommand := os.Args[1]
 
 	switch subcommand {
+	case "help", "-h", "--help":
+		printUsage(os.Stdout)
+
 	case "create":
 		if err := createFlag.Parse(os.Args[2:]); err != nil {
 			os.Exit(2)
@@ -348,6 +366,7 @@ func main() {
 
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown subcommand: %s\n", subcommand)
+		printUsage(os.Stderr)
 		os.Exit(2)
 	}
 }

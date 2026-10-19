@@ -12,6 +12,12 @@ go build task-cli-go.go
 
 ## Usage
 
+Show all available commands:
+
+```sh
+./task-cli-go --help
+```
+
 Create a task:
 
 ```sh
