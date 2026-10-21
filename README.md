@@ -7,7 +7,7 @@ A small Go command-line tool that stores tasks in `tasks.json`.
 Requires Go 1.27 or later.
 
 ```sh
-go build task-cli-go.go
+go build .
 ```
 
 ## Usage
